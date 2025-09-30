@@ -1,8 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import "./App.css";
 
-
-
 // Clase Nodo para la lista doble
 class Nodo {
   title: string;
@@ -37,6 +35,21 @@ class ListaDoble {
     }
   }
 
+  // Método para eliminar por título (primera coincidencia)
+  remove(title: string) {
+    let current = this.head;
+    while (current) {
+      if (current.title === title) {
+        if (current.prev) current.prev.next = current.next;
+        if (current.next) current.next.prev = current.prev;
+        if (current === this.head) this.head = current.next;
+        if (current === this.tail) this.tail = current.prev;
+        break;
+      }
+      current = current.next;
+    }
+  }
+
   toArray(): Nodo[] {
     const arr: Nodo[] = [];
     let current = this.head;
@@ -56,23 +69,21 @@ interface YouTubeSearchResult {
 }
 
 function App() {
-  // ⚠️ IMPORTANTE: Reemplaza esto con tu propia API Key de YouTube
   const YOUTUBE_API_KEY = "AIzaSyDnyraLhcVEaPAsjMoB8m9m4wv_BnXpIe8";
 
-  // Creamos la lista doble de canciones locales
-  const listaCanciones = new ListaDoble();
-  listaCanciones.add("Olvídala Binomio de Oro", "/songs/Olvidala.mp3", "/images/binomio de oro.jpeg");
-  listaCanciones.add("Déjala que vuelva", "/songs/dejala que vuelva.mp3", "/images/piso 21.jpeg");
-  listaCanciones.add("Un osito dormilón", "/songs/un osito dormilon.mp3", "/images/binomio de oro.jpeg");
+ 
+  const listaCancionesRef = useRef<ListaDoble | null>(null);
+  if (!listaCancionesRef.current) {
+    listaCancionesRef.current = new ListaDoble();
+    listaCancionesRef.current.add("Olvídala Binomio de Oro", "/songs/Olvidala.mp3", "/images/binomio de oro.jpeg");
+    listaCancionesRef.current.add("Déjala que vuelva", "/songs/dejala que vuelva.mp3", "/images/piso 21.jpeg");
+    listaCancionesRef.current.add("Un osito dormilón", "/songs/un osito dormilon.mp3", "/images/binomio de oro.jpeg");
+  }
+  const listaCanciones = listaCancionesRef.current;
 
-  // Canciones recomendadas
-  const cancionesRecomendadas = [
-    { title: "Olvidala ", artist: "Binomio de Oro", image: "/images/binomio de oro.jpeg" },
-    { title: "Suena El Dembow", artist: "Joey Montana", image: "/images/piso 21.jpeg" },
 
-  ];
-
-  // Estado
+  // Estados
+  const [playlist, setPlaylist] = useState<Nodo[]>(listaCanciones.toArray());
   const [currentSong, setCurrentSong] = useState<Nodo | null>(listaCanciones.head);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.5);
@@ -84,12 +95,12 @@ function App() {
   const [duration, setDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Filtra canciones locales según el término de búsqueda
-  const filteredSongs = listaCanciones.toArray().filter(song =>
+  // Filtra canciones según el término de búsqueda (usa el estado playlist)
+  const filteredSongs = playlist.filter(song =>
     song.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Función para formatear tiempo en MM:SS
+  // Formatear tiempo
   const formatTime = (seconds: number) => {
     if (isNaN(seconds)) return "0:00";
     const mins = Math.floor(seconds / 60);
@@ -97,7 +108,7 @@ function App() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Actualizar tiempo actual y duración
+  // Efecto para actualizar tiempo y duración del audio
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -116,7 +127,7 @@ function App() {
     };
   }, []);
 
-  // Saltar a un tiempo específico al hacer clic en la barra
+  // Manejo de click en barra de progreso
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!audioRef.current || !duration) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -133,8 +144,6 @@ function App() {
       return;
     }
 
-
-
     setIsSearching(true);
     try {
       const response = await fetch(
@@ -142,10 +151,9 @@ function App() {
           searchTerm + " music"
         )}&type=video&key=${YOUTUBE_API_KEY}`
       );
-      
+
       const data = await response.json();
 
-      // Verificar si hay error en la respuesta
       if (data.error) {
         console.error("Error de YouTube API:", data.error);
         alert(`Error de YouTube API: ${data.error.message}`);
@@ -173,33 +181,54 @@ function App() {
     }
   };
 
-  // Reproduce cuando cambia la canción
+  // Cuando cambia la canción local, recargar audio
   useEffect(() => {
-    if (audioRef.current && currentSong && !currentSong.videoId) {
-      audioRef.current.load();
+    const audio = audioRef.current;
+    if (audio && currentSong && !currentSong.videoId) {
+      audio.load();
       setCurrentTime(0);
       setDuration(0);
+  
+      // ⚡ volver a escuchar eventos cada vez
+      const updateTime = () => setCurrentTime(audio.currentTime);
+      const updateDuration = () => setDuration(audio.duration);
+  
+      audio.addEventListener("timeupdate", updateTime);
+      audio.addEventListener("loadedmetadata", updateDuration);
+  
       if (isPlaying) {
-        audioRef.current.play();
+        audio.play();
       }
+  
+      return () => {
+        audio.removeEventListener("timeupdate", updateTime);
+        audio.removeEventListener("loadedmetadata", updateDuration);
+      };
     }
   }, [currentSong]);
 
-  // Play / Pause
+  // Control Play / Pause
   const togglePlay = () => {
     if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play();
-    }
     setIsPlaying(!isPlaying);
+    if (!isPlaying) {
+      setTimeout(() => {
+        audioRef.current?.play();
+      }, 0);
+    } else {
+      audioRef.current.pause();
+    }
   };
-
+  
   // Siguiente
   const nextSong = () => {
     if (currentSong && !currentSong.videoId) {
       setCurrentSong(currentSong.next ? currentSong.next : listaCanciones.head);
+      setIsPlaying(true);
+      setTimeout(() => audioRef.current?.play(), 0);
+    } else if (currentSong && currentSong.videoId) {
+      // si es video de YouTube simplemente quitarlo o pasar a la primera local
+      setCurrentSong(listaCanciones.head);
       setIsPlaying(true);
       setTimeout(() => audioRef.current?.play(), 0);
     }
@@ -211,14 +240,36 @@ function App() {
       setCurrentSong(currentSong.prev ? currentSong.prev : listaCanciones.tail);
       setIsPlaying(true);
       setTimeout(() => audioRef.current?.play(), 0);
+    } else if (currentSong && currentSong.videoId) {
+      setCurrentSong(listaCanciones.tail);
+      setIsPlaying(true);
+      setTimeout(() => audioRef.current?.play(), 0);
     }
   };
 
-  // Reproducir desde YouTube
+  // Reproducir desde YouTube (no lo agrega a la lista por defecto)
   const playYouTubeVideo = (result: YouTubeSearchResult) => {
     const youtubeNode = new Nodo(result.title, "", result.thumbnail, result.id);
     setCurrentSong(youtubeNode);
     setIsPlaying(true);
+  };
+
+  // Agregar un resultado (o canción) a la playlist (lista doble)
+  const addToPlaylist = (song: { title: string; src: string; image: string; videoId?: string }) => {
+    listaCanciones.add(song.title, song.src || "", song.image || "", song.videoId);
+    setPlaylist(listaCanciones.toArray());
+  };
+
+  // Eliminar de playlist por título
+  const removeFromPlaylist = (title: string) => {
+    listaCanciones.remove(title);
+    const nueva = listaCanciones.toArray();
+    setPlaylist(nueva);
+    if (currentSong?.title === title) {
+      // si borramos la actual, intentar poner la cabeza o null
+      setCurrentSong(listaCanciones.head);
+      setIsPlaying(false);
+    }
   };
 
   const handleSearch = () => {
@@ -251,7 +302,7 @@ function App() {
           boxShadow: "0 8px 25px rgba(0,0,0,0.15)",
         }}
       >
-        <h2 style={{ marginBottom: "15px", color: "#333" }}>Lista de Canciones</h2>
+        <h2 style={{ marginBottom: "15px", color: "#333" }}>Play List</h2>
         <ul style={{ listStyle: "none", padding: 0 }}>
           {filteredSongs.map((song, index) => (
             <li
@@ -266,6 +317,9 @@ function App() {
                 background: currentSong?.title === song.title ? "rgba(157, 78, 221, 0.2)" : "transparent",
                 borderLeft: currentSong?.title === song.title ? "4px solid #9d4edd" : "4px solid transparent",
                 transition: "all 0.3s",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
               }}
               onClick={() => {
                 setCurrentSong(song);
@@ -285,7 +339,30 @@ function App() {
                 }
               }}
             >
-              {song.title}
+              <span style={{ display: "inline-block", marginRight: "12px", flex: 1 }}>{song.title}</span>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  title="Reproducir"
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    setCurrentSong(song);
+                    setIsPlaying(true);
+                    setTimeout(() => audioRef.current?.play(), 0);
+                  }}
+                >
+                  ▶
+                </button>
+                <button
+                  title="Eliminar"
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    removeFromPlaylist(song.title);
+                  }}
+                  style={{ color: "red" }}
+                >
+                  ❌
+                </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -313,7 +390,7 @@ function App() {
         }}
       >
         <h1 className="titulo" style={{ marginBottom: "10px", fontSize: "6rem" }}>
-          REPRODUCTOR
+          XSOUND
         </h1>
         <h2 style={{ marginBottom: "20px", fontSize: "1.8rem" }}>
           {currentSong?.title || "Sin canción"}
@@ -322,7 +399,7 @@ function App() {
         {/* Reproductor de YouTube o Imagen */}
         {currentSong?.videoId ? (
           <iframe
-            width="560"
+            width="360"
             height="315"
             src={`https://www.youtube.com/embed/${currentSong.videoId}?autoplay=1`}
             title="YouTube video player"
@@ -465,25 +542,29 @@ function App() {
                 justifyContent: "center",
               }}
             >
-              <label style={{ marginRight: "10px", color: "white" }}>Volumen</label>
+              <label style={{ marginRight: "10px", color: "White" }}>Volumen</label>
               <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={volume}
-                onChange={(e) => {
-                  const vol = parseFloat(e.target.value);
-                  setVolume(vol);
-                  if (audioRef.current) audioRef.current.volume = vol;
-                }}
-              />
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={volume}
+                  onChange={(e) => {
+                    const vol = parseFloat(e.target.value);
+                    setVolume(vol);
+                    if (audioRef.current) audioRef.current.volume = vol;
+                  }}
+                  className="volume-slider"
+                  style={{
+                    background: `linear-gradient(to right, #9d4edd ${volume * 100}%, white ${volume * 100}%)`
+                  }}
+                />
             </div>
           </>
         )}
       </div>
 
-      {/* Columna derecha - Buscador y Resultados */}
+      {/* Columna derecha - Buscador y Playlist */}
       <div
         style={{
           display: "flex",
@@ -501,7 +582,7 @@ function App() {
           }}
         >
           <h3 style={{ marginBottom: "10px", color: "#333" }}>🔍 Buscar Música</h3>
-          
+
           {/* Selector de modo */}
           <div style={{ marginBottom: "10px", display: "flex", gap: "10px" }}>
             <button
@@ -553,7 +634,7 @@ function App() {
               boxSizing: "border-box",
             }}
           />
-          
+
           {searchMode === "youtube" && (
             <button
               onClick={handleSearch}
@@ -569,12 +650,12 @@ function App() {
                 fontSize: "1rem",
               }}
             >
-              {isSearching ? "Buscando..." : "🔎 Buscar"}
+              {isSearching ? "Buscando..." : "Buscar"}
             </button>
           )}
         </div>
 
-        {/* Resultados de YouTube o Recomendadas */}
+        {/* Resultados de YouTube o Playlist */}
         <div
           style={{
             background: "rgba(255,255,255,0.92)",
@@ -585,104 +666,69 @@ function App() {
             flex: 1,
           }}
         >
-          <h3 style={{ marginBottom: "15px", color: "#333" }}>
-            {searchMode === "youtube" && youtubeResults.length > 0 ? "🎵 Resultados" : "⭐ Recomendadas"}
-          </h3>
-          
-          {searchMode === "youtube" && youtubeResults.length > 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {youtubeResults.map((result) => (
-                <div
-                  key={result.id}
-                  onClick={() => playYouTubeVideo(result)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    padding: "10px",
-                    borderRadius: "10px",
-                    cursor: "pointer",
-                    transition: "all 0.3s",
-                    background: "transparent",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "rgba(123, 44, 191, 0.1)";
-                    e.currentTarget.style.transform = "scale(1.02)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "transparent";
-                    e.currentTarget.style.transform = "scale(1)";
-                  }}
-                >
-                  <img
-                    src={result.thumbnail}
-                    alt={result.title}
+          {/* Si estás en modo youtube y hay resultados, muéstralos arriba */}
+          {searchMode === "youtube" && youtubeResults.length > 0 && (
+            <>
+              <h3 style={{ marginBottom: "15px", color: "#333" }}>🎵 Resultados</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "18px" }}>
+                {youtubeResults.map((result) => (
+                  <div
+                    key={result.id}
                     style={{
-                      width: "60px",
-                      height: "45px",
-                      borderRadius: "8px",
-                      objectFit: "cover",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      padding: "10px",
+                      borderRadius: "10px",
+                      cursor: "pointer",
+                      transition: "all 0.3s",
+                      background: "transparent",
+                      justifyContent: "space-between",
                     }}
-                  />
-                  <div style={{ flex: 1, textAlign: "left" }}>
-                    <div style={{ fontWeight: "bold", color: "#333", fontSize: "0.85rem" }}>
-                      {result.title.length > 40 ? result.title.substring(0, 40) + "..." : result.title}
+                  >
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}
+                      onClick={() => playYouTubeVideo(result)}
+                    >
+                      <img
+                        src={result.thumbnail}
+                        alt={result.title}
+                        style={{
+                          width: "60px",
+                          height: "45px",
+                          borderRadius: "8px",
+                          objectFit: "cover",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                        }}
+                      />
+                      <div style={{ textAlign: "left" }}>
+                        <div style={{ fontWeight: "bold", color: "#333", fontSize: "0.85rem" }}>
+                          {result.title.length > 40 ? result.title.substring(0, 40) + "..." : result.title}
+                        </div>
+                        <div style={{ fontSize: "0.75rem", color: "#666" }}>{result.channelTitle}</div>
+                      </div>
                     </div>
-                    <div style={{ fontSize: "0.75rem", color: "#666" }}>
-                      {result.channelTitle}
+
+                    <div style={{ display: "flex", gap: "8px", marginLeft: "12px" }}>
+                      <button
+                        title="Agregar a playlist"
+                        onClick={() =>
+                          addToPlaylist({ title: result.title, src: "", image: result.thumbnail, videoId: result.id })
+                        }
+                      >
+                        ➕
+                      </button>
+                      <button title="Reproducir" onClick={() => playYouTubeVideo(result)}>
+                        ▶
+                      </button>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {cancionesRecomendadas.map((rec, index) => (
-                <div
-                  key={index}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    padding: "10px",
-                    borderRadius: "10px",
-                    cursor: "pointer",
-                    transition: "all 0.3s",
-                    background: "transparent",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "rgba(123, 44, 191, 0.1)";
-                    e.currentTarget.style.transform = "scale(1.02)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "transparent";
-                    e.currentTarget.style.transform = "scale(1)";
-                  }}
-                >
-                  <img
-                    src={rec.image}
-                    alt={rec.title}
-                    style={{
-                      width: "50px",
-                      height: "50px",
-                      borderRadius: "8px",
-                      objectFit: "cover",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-                    }}
-                  />
-                  <div style={{ flex: 1, textAlign: "left" }}>
-                    <div style={{ fontWeight: "bold", color: "#333", fontSize: "0.95rem" }}>
-                      {rec.title}
-                    </div>
-                    <div style={{ fontSize: "0.85rem", color: "#666" }}>
-                      {rec.artist}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
+
+
         </div>
       </div>
     </div>

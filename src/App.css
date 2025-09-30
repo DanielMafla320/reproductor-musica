@@ -114,3 +114,16 @@ html, body, #root {
   from { text-shadow: 0 0 5px #ff77ff, 0 0 10px #ff77ff, 0 0 20px #c300ff; }
   to   { text-shadow: 0 0 10px #ff77ff, 0 0 20px #ff77ff, 0 0 40px #c300ff; }
 }
+
+
+
+.volume-slider {
+  -webkit-appearance: none;
+  width: 150px;
+  height: 6px;
+  border-radius: 5px;
+  background: #9d4edd;   /* color de la barra */
+  outline: none;
+  cursor: pointer;
+}
+
