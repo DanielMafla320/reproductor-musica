@@ -1,6 +1,8 @@
 import { useRef, useState, useEffect } from "react";
 import "./App.css";
 
+
+
 // Clase Nodo para la lista doble
 class Nodo {
   title: string;
@@ -65,10 +67,9 @@ function App() {
 
   // Canciones recomendadas
   const cancionesRecomendadas = [
-    { title: "La Gota Fría", artist: "Carlos Vives", image: "/images/binomio de oro.jpeg" },
+    { title: "Olvidala ", artist: "Binomio de Oro", image: "/images/binomio de oro.jpeg" },
     { title: "Suena El Dembow", artist: "Joey Montana", image: "/images/piso 21.jpeg" },
-    { title: "Me Vas a Extrañar", artist: "Banda MS", image: "/images/binomio de oro.jpeg" },
-    { title: "Prometo Olvidarte", artist: "Piso 21", image: "/images/piso 21.jpeg" },
+
   ];
 
   // Estado
@@ -79,12 +80,51 @@ function App() {
   const [youtubeResults, setYoutubeResults] = useState<YouTubeSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchMode, setSearchMode] = useState<"local" | "youtube">("local");
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Filtra canciones locales según el término de búsqueda
   const filteredSongs = listaCanciones.toArray().filter(song =>
     song.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Función para formatear tiempo en MM:SS
+  const formatTime = (seconds: number) => {
+    if (isNaN(seconds)) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Actualizar tiempo actual y duración
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const updateTime = () => setCurrentTime(audio.currentTime);
+    const updateDuration = () => setDuration(audio.duration);
+
+    audio.addEventListener('timeupdate', updateTime);
+    audio.addEventListener('loadedmetadata', updateDuration);
+    audio.addEventListener('durationchange', updateDuration);
+
+    return () => {
+      audio.removeEventListener('timeupdate', updateTime);
+      audio.removeEventListener('loadedmetadata', updateDuration);
+      audio.removeEventListener('durationchange', updateDuration);
+    };
+  }, []);
+
+  // Saltar a un tiempo específico al hacer clic en la barra
+  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!audioRef.current || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const percent = (e.clientX - rect.left) / rect.width;
+    const newTime = percent * duration;
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
 
   // Buscar en YouTube
   const searchYouTube = async () => {
@@ -137,6 +177,8 @@ function App() {
   useEffect(() => {
     if (audioRef.current && currentSong && !currentSong.videoId) {
       audioRef.current.load();
+      setCurrentTime(0);
+      setDuration(0);
       if (isPlaying) {
         audioRef.current.play();
       }
@@ -328,6 +370,44 @@ function App() {
         {/* Botones - solo para canciones locales */}
         {!currentSong?.videoId && (
           <>
+            {/* Barra de progreso */}
+            <div style={{ width: "100%", maxWidth: "500px", marginBottom: "15px" }}>
+              <div
+                onClick={handleProgressClick}
+                style={{
+                  width: "100%",
+                  height: "8px",
+                  background: "rgba(255,255,255,0.3)",
+                  borderRadius: "10px",
+                  cursor: "pointer",
+                  position: "relative",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${duration ? (currentTime / duration) * 100 : 0}%`,
+                    height: "100%",
+                    background: "linear-gradient(90deg, #9d4edd, #c77dff)",
+                    borderRadius: "10px",
+                    transition: "width 0.1s linear",
+                  }}
+                />
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginTop: "8px",
+                  fontSize: "0.9rem",
+                  color: "rgba(255,255,255,0.9)",
+                }}
+              >
+                <span>{formatTime(currentTime)}</span>
+                <span>{formatTime(duration)}</span>
+              </div>
+            </div>
+
             <div style={{ marginTop: "10px" }}>
               <button
                 style={{
