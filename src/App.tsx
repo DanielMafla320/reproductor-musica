@@ -2,15 +2,24 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import "./App.css";
 
 class Nodo {
+  title: string;
+  src: string;
+  image: string;
+  videoId: string | undefined;
   next: Nodo | null = null;
   prev: Nodo | null = null;
 
   constructor(
-    public title: string,
-    public src: string,
-    public image: string,
-    public videoId?: string,
-  ) {}
+    title: string,
+    src: string,
+    image: string,
+    videoId?: string,
+  ) {
+    this.title = title;
+    this.src = src;
+    this.image = image;
+    this.videoId = videoId;
+  }
 }
 
 class ListaDoble {
