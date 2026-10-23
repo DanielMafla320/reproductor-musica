@@ -1,63 +1,54 @@
-import { useRef, useState, useEffect } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import "./App.css";
 
-// Clase Nodo para la lista doble
 class Nodo {
-  title: string;
-  src: string;
-  image: string;
-  videoId?: string;
   next: Nodo | null = null;
   prev: Nodo | null = null;
 
-  constructor(title: string, src: string, image: string, videoId?: string) {
-    this.title = title;
-    this.src = src;
-    this.image = image;
-    this.videoId = videoId;
-  }
+  constructor(
+    public title: string,
+    public src: string,
+    public image: string,
+    public videoId?: string,
+  ) {}
 }
 
-// Clase ListaDoble
 class ListaDoble {
   head: Nodo | null = null;
   tail: Nodo | null = null;
 
   add(title: string, src: string, image: string, videoId?: string) {
-    const newNode = new Nodo(title, src, image, videoId);
-    if (!this.head) {
-      this.head = newNode;
-      this.tail = newNode;
-    } else {
-      this.tail!.next = newNode;
-      newNode.prev = this.tail;
-      this.tail = newNode;
+    const node = new Nodo(title, src, image, videoId);
+    if (!this.head) this.head = this.tail = node;
+    else {
+      node.prev = this.tail;
+      this.tail!.next = node;
+      this.tail = node;
     }
   }
 
-  // Método para eliminar por título (primera coincidencia)
-  remove(title: string) {
-    let current = this.head;
-    while (current) {
-      if (current.title === title) {
-        if (current.prev) current.prev.next = current.next;
-        if (current.next) current.next.prev = current.prev;
-        if (current === this.head) this.head = current.next;
-        if (current === this.tail) this.tail = current.prev;
-        break;
+  remove(target: Nodo) {
+    let node = this.head;
+    while (node) {
+      if (node === target) {
+        if (node.prev) node.prev.next = node.next;
+        else this.head = node.next;
+        if (node.next) node.next.prev = node.prev;
+        else this.tail = node.prev;
+        return;
       }
-      current = current.next;
+      node = node.next;
     }
   }
 
-  toArray(): Nodo[] {
-    const arr: Nodo[] = [];
-    let current = this.head;
-    while (current) {
-      arr.push(current);
-      current = current.next;
+  toArray() {
+    const songs: Nodo[] = [];
+    let node = this.head;
+    while (node) {
+      songs.push(node);
+      node = node.next;
     }
-    return arr;
+    return songs;
   }
 }
 
@@ -68,670 +59,215 @@ interface YouTubeSearchResult {
   channelTitle: string;
 }
 
+function Icon({ name, size = 20 }: { name: string; size?: number }) {
+  const paths: Record<string, ReactNode> = {
+    search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
+    play: <path d="m8 5 12 7-12 7z" fill="currentColor" stroke="none" />,
+    pause: <><path d="M8 5h3v14H8z" fill="currentColor" stroke="none" /><path d="M15 5h3v14h-3z" fill="currentColor" stroke="none" /></>,
+    next: <><path d="m5 5 10 7-10 7z" fill="currentColor" stroke="none" /><path d="M19 5v14" /></>,
+    previous: <><path d="m19 5-10 7 10 7z" fill="currentColor" stroke="none" /><path d="M5 5v14" /></>,
+    plus: <><path d="M12 5v14M5 12h14" /></>,
+    close: <><path d="m6 6 12 12M18 6 6 18" /></>,
+    heart: <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" />,
+    music: <><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></>,
+    volume: <><path d="M11 5 6 9H3v6h3l5 4z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" /></>,
+  };
+  return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
+}
+
 function App() {
-  const YOUTUBE_API_KEY = "AIzaSyDnyraLhcVEaPAsjMoB8m9m4wv_BnXpIe8";
-
- 
-  const listaCancionesRef = useRef<ListaDoble | null>(null);
-  if (!listaCancionesRef.current) {
-    listaCancionesRef.current = new ListaDoble();
-    listaCancionesRef.current.add("Olvídala Binomio de Oro", "/songs/Olvidala.mp3", "/images/binomio de oro.jpeg");
-    listaCancionesRef.current.add("Déjala que vuelva", "/songs/dejala que vuelva.mp3", "/images/piso 21.jpeg");
-    listaCancionesRef.current.add("Un osito dormilón", "/songs/un osito dormilon.mp3", "/images/binomio de oro.jpeg");
+  const playlistRef = useRef<ListaDoble | null>(null);
+  if (!playlistRef.current) {
+    playlistRef.current = new ListaDoble();
+    playlistRef.current.add("Olvídala · Binomio de Oro", "/songs/Olvidala.mp3", "/images/binomio de oro.jpeg");
+    playlistRef.current.add("Déjala que vuelva · Piso 21", "/songs/dejala que vuelva.mp3", "/images/piso 21.jpeg");
+    playlistRef.current.add("Un osito dormilón · Binomio de Oro", "/songs/un osito dormilon.mp3", "/images/binomio de oro.jpeg");
   }
-  const listaCanciones = listaCancionesRef.current;
-
-
-  // Estados
-  const [playlist, setPlaylist] = useState<Nodo[]>(listaCanciones.toArray());
-  const [currentSong, setCurrentSong] = useState<Nodo | null>(listaCanciones.head);
+  const playlistRefValue = playlistRef.current;
+  const [playlist, setPlaylist] = useState(playlistRefValue.toArray());
+  const [currentSong, setCurrentSong] = useState<Nodo | null>(playlistRefValue.head);
+  const [favorites, setFavorites] = useState<string[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.5);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [volume, setVolume] = useState(0.65);
+  const [librarySearch, setLibrarySearch] = useState("");
+  const [youtubeQuery, setYoutubeQuery] = useState("");
   const [youtubeResults, setYoutubeResults] = useState<YouTubeSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [searchMode, setSearchMode] = useState<"local" | "youtube">("local");
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [searchError, setSearchError] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const filteredSongs = playlist.filter((song) => song.title.toLowerCase().includes(librarySearch.toLowerCase()));
 
-  // Filtra canciones según el término de búsqueda (usa el estado playlist)
-  const filteredSongs = playlist.filter(song =>
-    song.title.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Formatear tiempo
   const formatTime = (seconds: number) => {
-    if (isNaN(seconds)) return "0:00";
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    if (!Number.isFinite(seconds)) return "0:00";
+    return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`;
   };
 
-  // Efecto para actualizar tiempo y duración del audio
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || currentSong?.videoId) return;
+    audio.load();
+    setCurrentTime(0);
+    setDuration(0);
+  }, [currentSong]);
+
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    audio.volume = volume;
+  }, [volume]);
 
-    const updateTime = () => setCurrentTime(audio.currentTime);
-    const updateDuration = () => setDuration(audio.duration);
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || currentSong?.videoId) return;
+    if (isPlaying) void audio.play().catch(() => setIsPlaying(false));
+    else audio.pause();
+  }, [isPlaying, currentSong]);
 
-    audio.addEventListener('timeupdate', updateTime);
-    audio.addEventListener('loadedmetadata', updateDuration);
-    audio.addEventListener('durationchange', updateDuration);
-
-    return () => {
-      audio.removeEventListener('timeupdate', updateTime);
-      audio.removeEventListener('loadedmetadata', updateDuration);
-      audio.removeEventListener('durationchange', updateDuration);
-    };
-  }, []);
-
-  // Manejo de click en barra de progreso
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!audioRef.current || !duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const percent = (e.clientX - rect.left) / rect.width;
-    const newTime = percent * duration;
-    audioRef.current.currentTime = newTime;
-    setCurrentTime(newTime);
+  const playSong = (song: Nodo) => {
+    setCurrentSong(song);
+    setIsPlaying(true);
   };
 
-  // Buscar en YouTube
-  const searchYouTube = async () => {
-    if (!searchTerm.trim()) {
-      alert("⚠️ Por favor escribe algo para buscar.");
+  const togglePlay = () => {
+    if (currentSong?.videoId) {
+      setIsPlaying((playing) => !playing);
       return;
     }
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      void audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+    }
+  };
 
+  const changeTrack = (direction: "next" | "previous") => {
+    if (!currentSong || !playlist.length) return;
+    if (currentSong.videoId) {
+      playSong(direction === "next" ? (playlistRefValue.head ?? playlist[0]) : (playlistRefValue.tail ?? playlist[playlist.length - 1]));
+      return;
+    }
+    const next = direction === "next" ? currentSong.next ?? playlistRefValue.head : currentSong.prev ?? playlistRefValue.tail;
+    if (next) playSong(next);
+  };
+
+  const searchYouTube = async () => {
+    if (!youtubeQuery.trim()) return;
     setIsSearching(true);
+    setSearchError("");
     try {
-      const response = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=10&q=${encodeURIComponent(
-          searchTerm + " music"
-        )}&type=video&key=${YOUTUBE_API_KEY}`
-      );
-
+      const key = import.meta.env.VITE_YOUTUBE_API_KEY;
+      if (!key) throw new Error("Configura VITE_YOUTUBE_API_KEY para buscar en YouTube.");
+      const params = new URLSearchParams({
+        part: "snippet",
+        maxResults: "10",
+        type: "video",
+        videoCategoryId: "10",
+        q: youtubeQuery.trim(),
+        key,
+      });
+      const response = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`);
       const data = await response.json();
-
-      if (data.error) {
-        console.error("Error de YouTube API:", data.error);
-        alert(`Error de YouTube API: ${data.error.message}`);
-        setIsSearching(false);
-        return;
-      }
-
-      if (data.items && data.items.length > 0) {
-        const results: YouTubeSearchResult[] = data.items.map((item: any) => ({
-          id: item.id.videoId,
-          title: item.snippet.title,
-          thumbnail: item.snippet.thumbnails.medium.url,
-          channelTitle: item.snippet.channelTitle,
-        }));
-        setYoutubeResults(results);
-      } else {
-        alert("No se encontraron resultados. Intenta con otra búsqueda.");
-        setYoutubeResults([]);
-      }
+      if (!response.ok) throw new Error(data.error?.message ?? "No se pudo completar la búsqueda.");
+      const results: YouTubeSearchResult[] = (data.items ?? []).map((item: any) => ({
+        id: item.id.videoId,
+        title: item.snippet.title,
+        thumbnail: item.snippet.thumbnails.medium.url,
+        channelTitle: item.snippet.channelTitle,
+      }));
+      setYoutubeResults(results);
+      if (!results.length) setSearchError("No encontramos resultados. Prueba con otra búsqueda.");
     } catch (error) {
-      console.error("Error buscando en YouTube:", error);
-      alert("Error al buscar en YouTube. Verifica tu conexión a internet y que tu API Key esté correcta.");
+      setSearchError(error instanceof Error ? error.message : "No se pudo conectar con YouTube.");
+      setYoutubeResults([]);
     } finally {
       setIsSearching(false);
     }
   };
 
-  // Cuando cambia la canción local, recargar audio
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (audio && currentSong && !currentSong.videoId) {
-      audio.load();
-      setCurrentTime(0);
-      setDuration(0);
-  
-      // ⚡ volver a escuchar eventos cada vez
-      const updateTime = () => setCurrentTime(audio.currentTime);
-      const updateDuration = () => setDuration(audio.duration);
-  
-      audio.addEventListener("timeupdate", updateTime);
-      audio.addEventListener("loadedmetadata", updateDuration);
-  
-      if (isPlaying) {
-        audio.play();
-      }
-  
-      return () => {
-        audio.removeEventListener("timeupdate", updateTime);
-        audio.removeEventListener("loadedmetadata", updateDuration);
-      };
-    }
-  }, [currentSong]);
-
-  // Control Play / Pause
-  const togglePlay = () => {
-    if (!audioRef.current) return;
-    setIsPlaying(!isPlaying);
-    if (!isPlaying) {
-      setTimeout(() => {
-        audioRef.current?.play();
-      }, 0);
-    } else {
-      audioRef.current.pause();
-    }
-  };
-  
-  // Siguiente
-  const nextSong = () => {
-    if (currentSong && !currentSong.videoId) {
-      setCurrentSong(currentSong.next ? currentSong.next : listaCanciones.head);
-      setIsPlaying(true);
-      setTimeout(() => audioRef.current?.play(), 0);
-    } else if (currentSong && currentSong.videoId) {
-      // si es video de YouTube simplemente quitarlo o pasar a la primera local
-      setCurrentSong(listaCanciones.head);
-      setIsPlaying(true);
-      setTimeout(() => audioRef.current?.play(), 0);
-    }
-  };
-
-  // Anterior
-  const prevSong = () => {
-    if (currentSong && !currentSong.videoId) {
-      setCurrentSong(currentSong.prev ? currentSong.prev : listaCanciones.tail);
-      setIsPlaying(true);
-      setTimeout(() => audioRef.current?.play(), 0);
-    } else if (currentSong && currentSong.videoId) {
-      setCurrentSong(listaCanciones.tail);
-      setIsPlaying(true);
-      setTimeout(() => audioRef.current?.play(), 0);
-    }
-  };
-
-  // Reproducir desde YouTube (no lo agrega a la lista por defecto)
-  const playYouTubeVideo = (result: YouTubeSearchResult) => {
-    const youtubeNode = new Nodo(result.title, "", result.thumbnail, result.id);
-    setCurrentSong(youtubeNode);
-    setIsPlaying(true);
-  };
-
-  // Agregar un resultado (o canción) a la playlist (lista doble)
-  const addToPlaylist = (song: { title: string; src: string; image: string; videoId?: string }) => {
-    listaCanciones.add(song.title, song.src || "", song.image || "", song.videoId);
-    setPlaylist(listaCanciones.toArray());
-  };
-
-  // Eliminar de playlist por título
-  const removeFromPlaylist = (title: string) => {
-    listaCanciones.remove(title);
-    const nueva = listaCanciones.toArray();
-    setPlaylist(nueva);
-    if (currentSong?.title === title) {
-      // si borramos la actual, intentar poner la cabeza o null
-      setCurrentSong(listaCanciones.head);
+  const removeFromPlaylist = (song: Nodo) => {
+    const wasCurrent = currentSong === song;
+    playlistRefValue.remove(song);
+    const updated = playlistRefValue.toArray();
+    setPlaylist(updated);
+    if (wasCurrent) {
+      setCurrentSong(updated[0] ?? null);
       setIsPlaying(false);
     }
   };
 
-  const handleSearch = () => {
-    if (searchMode === "youtube") {
-      searchYouTube();
-    }
+  const seek = (value: number) => {
+    if (!audioRef.current || !duration) return;
+    audioRef.current.currentTime = value;
+    setCurrentTime(value);
   };
 
+  const activeImage = currentSong?.image;
+  const isFavorite = currentSong ? favorites.includes(currentSong.title) : false;
+
   return (
-    <div
-      className="app-container"
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 2fr 1fr",
-        gap: "20px",
-        height: "100vh",
-        padding: "20px",
-        fontFamily: "Playfair Display, serif",
-        background: "#f5f5f5",
-      }}
-    >
-      {/* Columna izquierda - Lista de canciones */}
-      <div
-        className="song-list"
-        style={{
-          background: "rgba(255,255,255,0.92)",
-          padding: "20px",
-          borderRadius: "20px",
-          overflowY: "auto",
-          boxShadow: "0 8px 25px rgba(0,0,0,0.15)",
-        }}
-      >
-        <h2 style={{ marginBottom: "15px", color: "#333" }}>Play List</h2>
-        <ul style={{ listStyle: "none", padding: 0 }}>
-          {filteredSongs.map((song, index) => (
-            <li
-              key={index}
-              style={{
-                cursor: "pointer",
-                padding: "10px 15px",
-                margin: "5px 0",
-                borderRadius: "10px",
-                fontWeight: currentSong?.title === song.title ? "bold" : "normal",
-                color: currentSong?.title === song.title ? "#9d4edd" : "#222",
-                background: currentSong?.title === song.title ? "rgba(157, 78, 221, 0.2)" : "transparent",
-                borderLeft: currentSong?.title === song.title ? "4px solid #9d4edd" : "4px solid transparent",
-                transition: "all 0.3s",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-              onClick={() => {
-                setCurrentSong(song);
-                setIsPlaying(true);
-                setTimeout(() => audioRef.current?.play(), 0);
-              }}
-              onMouseEnter={(e) => {
-                if (currentSong?.title !== song.title) {
-                  e.currentTarget.style.background = "rgba(123, 44, 191, 0.1)";
-                  e.currentTarget.style.transform = "translateX(5px)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (currentSong?.title !== song.title) {
-                  e.currentTarget.style.background = "transparent";
-                  e.currentTarget.style.transform = "translateX(0)";
-                }
-              }}
-            >
-              <span style={{ display: "inline-block", marginRight: "12px", flex: 1 }}>{song.title}</span>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button
-                  title="Reproducir"
-                  onClick={(ev) => {
-                    ev.stopPropagation();
-                    setCurrentSong(song);
-                    setIsPlaying(true);
-                    setTimeout(() => audioRef.current?.play(), 0);
-                  }}
-                >
-                  ▶
-                </button>
-                <button
-                  title="Eliminar"
-                  onClick={(ev) => {
-                    ev.stopPropagation();
-                    removeFromPlaylist(song.title);
-                  }}
-                  style={{ color: "red" }}
-                >
-                  ❌
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
+    <main className="app-shell">
+      <header className="topbar">
+        <a className="brand" href="#inicio" aria-label="XSOUND, inicio"><span className="brand-mark"><Icon name="music" size={18} /></span><span>XSOUND<span className="brand-period">.</span></span></a>
+        <div className="topbar-note">Tu espacio para escuchar</div>
+      </header>
 
-      {/* Columna central - Reproductor */}
-      <div
-        className="player-container"
-        style={{
-          backgroundImage: currentSong
-            ? `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.6)), url(${currentSong.image})`
-            : "linear-gradient(135deg, #c77dff, #e0aaff)",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-          borderRadius: "20px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          textAlign: "center",
-          color: "white",
-          padding: "40px",
-          boxShadow: "0 12px 30px rgba(0,0,0,0.2)",
-        }}
-      >
-        <h1 className="titulo" style={{ marginBottom: "10px", fontSize: "6rem" }}>
-          XSOUND
-        </h1>
-        <h2 style={{ marginBottom: "20px", fontSize: "1.8rem" }}>
-          {currentSong?.title || "Sin canción"}
-        </h2>
-
-        {/* Reproductor de YouTube o Imagen */}
-        {currentSong?.videoId ? (
-          <iframe
-            width="360"
-            height="315"
-            src={`https://www.youtube.com/embed/${currentSong.videoId}?autoplay=1`}
-            title="YouTube video player"
-            frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            style={{
-              borderRadius: "15px",
-              boxShadow: "0 6px 15px rgba(0,0,0,0.4)",
-              marginBottom: "20px",
-            }}
-          ></iframe>
-        ) : (
-          currentSong?.image && (
-            <div
-              style={{
-                width: "250px",
-                height: "250px",
-                borderRadius: "15px",
-                overflow: "hidden",
-                boxShadow: "0 6px 15px rgba(0,0,0,0.4)",
-                marginBottom: "20px",
-              }}
-            >
-              <img
-                src={currentSong.image}
-                alt={currentSong.title}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                }}
-              />
-            </div>
-          )
-        )}
-
-        {/* Audio oculto (solo para canciones locales) */}
-        {!currentSong?.videoId && (
-          <audio ref={audioRef} controls style={{ display: "none" }}>
-            <source src={currentSong?.src} type="audio/mp3" />
-          </audio>
-        )}
-
-        {/* Botones - solo para canciones locales */}
-        {!currentSong?.videoId && (
-          <>
-            {/* Barra de progreso */}
-            <div style={{ width: "100%", maxWidth: "500px", marginBottom: "15px" }}>
-              <div
-                onClick={handleProgressClick}
-                style={{
-                  width: "100%",
-                  height: "8px",
-                  background: "rgba(255,255,255,0.3)",
-                  borderRadius: "10px",
-                  cursor: "pointer",
-                  position: "relative",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    width: `${duration ? (currentTime / duration) * 100 : 0}%`,
-                    height: "100%",
-                    background: "linear-gradient(90deg, #9d4edd, #c77dff)",
-                    borderRadius: "10px",
-                    transition: "width 0.1s linear",
-                  }}
-                />
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginTop: "8px",
-                  fontSize: "0.9rem",
-                  color: "rgba(255,255,255,0.9)",
-                }}
-              >
-                <span>{formatTime(currentTime)}</span>
-                <span>{formatTime(duration)}</span>
-              </div>
-            </div>
-
-            <div style={{ marginTop: "10px" }}>
-              <button
-                style={{
-                  background: "#7b2cbf",
-                  color: "white",
-                  border: "none",
-                  padding: "10px 20px",
-                  margin: "0 5px",
-                  borderRadius: "50px",
-                  cursor: "pointer",
-                  fontSize: "1rem",
-                }}
-                onClick={prevSong}
-              >
-                ⏮️ Anterior
-              </button>
-              <button
-                style={{
-                  background: "#7b2cbf",
-                  color: "white",
-                  border: "none",
-                  padding: "10px 20px",
-                  margin: "0 5px",
-                  borderRadius: "50px",
-                  cursor: "pointer",
-                  fontSize: "1rem",
-                }}
-                onClick={togglePlay}
-              >
-                {isPlaying ? "⏸️ Pausar" : "▶️ Reproducir"}
-              </button>
-              <button
-                style={{
-                  background: "#7b2cbf",
-                  color: "white",
-                  border: "none",
-                  padding: "10px 20px",
-                  margin: "0 5px",
-                  borderRadius: "50px",
-                  cursor: "pointer",
-                  fontSize: "1rem",
-                }}
-                onClick={nextSong}
-              >
-                ⏭️ Siguiente
-              </button>
-            </div>
-
-            {/* Barra de volumen */}
-            <div
-              style={{
-                marginTop: "18px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <label style={{ marginRight: "10px", color: "White" }}>Volumen</label>
-              <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={volume}
-                  onChange={(e) => {
-                    const vol = parseFloat(e.target.value);
-                    setVolume(vol);
-                    if (audioRef.current) audioRef.current.volume = vol;
-                  }}
-                  className="volume-slider"
-                  style={{
-                    background: `linear-gradient(to right, #9d4edd ${volume * 100}%, white ${volume * 100}%)`
-                  }}
-                />
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Columna derecha - Buscador y Playlist */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "20px",
-        }}
-      >
-        {/* Buscador */}
-        <div
-          style={{
-            background: "rgba(255,255,255,0.92)",
-            padding: "20px",
-            borderRadius: "20px",
-            boxShadow: "0 8px 25px rgba(0,0,0,0.15)",
-          }}
-        >
-          <h3 style={{ marginBottom: "10px", color: "#333" }}>🔍 Buscar Música</h3>
-
-          {/* Selector de modo */}
-          <div style={{ marginBottom: "10px", display: "flex", gap: "10px" }}>
-            <button
-              onClick={() => setSearchMode("local")}
-              style={{
-                flex: 1,
-                padding: "8px",
-                borderRadius: "8px",
-                border: "none",
-                background: searchMode === "local" ? "#7b2cbf" : "#e0aaff",
-                color: searchMode === "local" ? "white" : "#333",
-                cursor: "pointer",
-                fontSize: "0.9rem",
-              }}
-            >
-              📁 Local
-            </button>
-            <button
-              onClick={() => setSearchMode("youtube")}
-              style={{
-                flex: 1,
-                padding: "8px",
-                borderRadius: "8px",
-                border: "none",
-                background: searchMode === "youtube" ? "#7b2cbf" : "#e0aaff",
-                color: searchMode === "youtube" ? "white" : "#333",
-                cursor: "pointer",
-                fontSize: "0.9rem",
-              }}
-            >
-              ▶️ YouTube
-            </button>
+      <div className="workspace" id="inicio">
+        <aside className="library panel">
+          <div className="section-heading">
+            <div><p className="eyebrow">TU COLECCIÓN</p><h2>Biblioteca</h2></div>
+            <span className="count-pill">{playlist.length.toString().padStart(2, "0")}</span>
           </div>
+          <label className="search-field library-search"><Icon name="search" size={18} /><input aria-label="Filtrar biblioteca descargada" placeholder="Filtrar descargas" value={librarySearch} onChange={(event) => setLibrarySearch(event.target.value)} /><kbd>/</kbd></label>
+          <div className="list-label"><span>EN LA COLA</span><span>{filteredSongs.length} pistas</span></div>
+          <ul className="track-list">
+            {filteredSongs.map((song, index) => (
+              <li key={`${song.title}-${index}`} className={`track-row ${currentSong === song ? "is-active" : ""}`}>
+                <button className="track-main" onClick={() => playSong(song)} aria-label={`Reproducir ${song.title}`}>
+                  <span className="track-cover"><img src={song.image} alt="" /></span>
+                  <span className="track-copy"><span className="track-title">{song.title.split(" · ")[0]}</span><span className="track-subtitle">{song.title.split(" · ")[1] ?? "Tu biblioteca"}</span></span>
+                </button>
+                <button className="icon-button remove-button" title={`Quitar ${song.title}`} aria-label={`Quitar ${song.title}`} onClick={() => removeFromPlaylist(song)}><Icon name="close" size={17} /></button>
+              </li>
+            ))}
+            {!filteredSongs.length && <li className="empty-state">No hay canciones para mostrar.</li>}
+          </ul>
+          <div className="library-foot"><span className="library-foot-icon"><Icon name="music" size={15} /></span><span>Hecho para escuchar con calma</span></div>
+        </aside>
 
-          <input
-            type="text"
-            placeholder={searchMode === "local" ? "Buscar en tus canciones..." : "Buscar en YouTube..."}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-            style={{
-              width: "100%",
-              padding: "12px",
-              borderRadius: "10px",
-              border: "2px solid #9d4edd",
-              fontSize: "1rem",
-              outline: "none",
-              marginBottom: "10px",
-              boxSizing: "border-box",
-            }}
-          />
+        <section className="player panel" aria-label="Reproductor">
+          <div className="player-glow" />
+          <div className="player-header"><span className="eyebrow">AHORA SUENA</span></div>
+          <div className={`album-art ${currentSong?.videoId ? "video-art" : ""}`}>
+            {currentSong?.videoId ? <iframe src={`https://www.youtube.com/embed/${currentSong.videoId}?autoplay=${isPlaying ? 1 : 0}`} title={`Reproductor de ${currentSong.title}`} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen /> : activeImage ? <img src={activeImage} alt={`Portada de ${currentSong?.title}`} /> : <div className="art-placeholder"><Icon name="music" size={60} /></div>}
+          </div>
+          <div className="now-playing"><div className="song-heading"><div><h1>{currentSong?.title.split(" · ")[0] ?? "Elige una canción"}</h1><p className="artist-name">{currentSong?.title.split(" · ")[1] ?? "Tu música, a tu manera"}</p></div><button className={`favorite-button ${isFavorite ? "is-favorite" : ""}`} aria-label={isFavorite ? "Quitar de favoritos" : "Añadir a favoritos"} aria-pressed={isFavorite} title={isFavorite ? "Quitar de favoritos" : "Añadir a favoritos"} disabled={!currentSong} onClick={() => currentSong && setFavorites((saved) => isFavorite ? saved.filter((title) => title !== currentSong.title) : [...saved, currentSong.title])}><Icon name="heart" size={17} /></button></div>
+            {!currentSong?.videoId && <div className="timeline"><input aria-label="Posición de reproducción" type="range" min="0" max={duration || 0} step="0.1" value={Math.min(currentTime, duration || 0)} style={{ "--progress": `${duration ? (currentTime / duration) * 100 : 0}%` } as CSSProperties} onChange={(event) => seek(Number(event.target.value))} /><div className="time-labels"><span>{formatTime(currentTime)}</span><span>{formatTime(duration)}</span></div></div>}
+            <div className="player-controls"><button className="transport-button" aria-label="Pista anterior" onClick={() => changeTrack("previous")}><Icon name="previous" /></button><button className="play-button" aria-label={isPlaying ? "Pausar" : "Reproducir"} onClick={togglePlay}><Icon name={isPlaying ? "pause" : "play"} size={22} /></button><button className="transport-button" aria-label="Siguiente pista" onClick={() => changeTrack("next")}><Icon name="next" /></button><div className="volume-control"><Icon name="volume" size={18} /><input aria-label="Volumen" type="range" min="0" max="1" step="0.01" value={volume} style={{ "--progress": `${volume * 100}%` } as CSSProperties} onChange={(event) => setVolume(Number(event.target.value))} /></div></div>
+          </div>
+          {!currentSong?.videoId && currentSong && <audio ref={audioRef} src={currentSong.src} onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)} onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)} onEnded={() => changeTrack("next")} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} />}
+        </section>
 
-          {searchMode === "youtube" && (
-            <button
-              onClick={handleSearch}
-              disabled={isSearching}
-              style={{
-                width: "100%",
-                padding: "12px",
-                borderRadius: "10px",
-                border: "none",
-                background: "#7b2cbf",
-                color: "white",
-                cursor: isSearching ? "not-allowed" : "pointer",
-                fontSize: "1rem",
-              }}
-            >
-              {isSearching ? "Buscando..." : "Buscar"}
-            </button>
-          )}
-        </div>
-
-        {/* Resultados de YouTube o Playlist */}
-        <div
-          style={{
-            background: "rgba(255,255,255,0.92)",
-            padding: "20px",
-            borderRadius: "20px",
-            boxShadow: "0 8px 25px rgba(0,0,0,0.15)",
-            overflowY: "auto",
-            flex: 1,
-          }}
-        >
-          {/* Si estás en modo youtube y hay resultados, muéstralos arriba */}
-          {searchMode === "youtube" && youtubeResults.length > 0 && (
-            <>
-              <h3 style={{ marginBottom: "15px", color: "#333" }}>🎵 Resultados</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "18px" }}>
-                {youtubeResults.map((result) => (
-                  <div
-                    key={result.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      padding: "10px",
-                      borderRadius: "10px",
-                      cursor: "pointer",
-                      transition: "all 0.3s",
-                      background: "transparent",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <div
-                      style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}
-                      onClick={() => playYouTubeVideo(result)}
-                    >
-                      <img
-                        src={result.thumbnail}
-                        alt={result.title}
-                        style={{
-                          width: "60px",
-                          height: "45px",
-                          borderRadius: "8px",
-                          objectFit: "cover",
-                          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-                        }}
-                      />
-                      <div style={{ textAlign: "left" }}>
-                        <div style={{ fontWeight: "bold", color: "#333", fontSize: "0.85rem" }}>
-                          {result.title.length > 40 ? result.title.substring(0, 40) + "..." : result.title}
-                        </div>
-                        <div style={{ fontSize: "0.75rem", color: "#666" }}>{result.channelTitle}</div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: "flex", gap: "8px", marginLeft: "12px" }}>
-                      <button
-                        title="Agregar a playlist"
-                        onClick={() =>
-                          addToPlaylist({ title: result.title, src: "", image: result.thumbnail, videoId: result.id })
-                        }
-                      >
-                        ➕
-                      </button>
-                      <button title="Reproducir" onClick={() => playYouTubeVideo(result)}>
-                        ▶
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-
-        </div>
+        <aside className="discover panel">
+          <div className="section-heading discover-heading"><div><p className="eyebrow">EXPLORAR</p><h2>YouTube</h2></div><span className="discover-symbol"><Icon name="search" size={19} /></span></div>
+          <form className="discover-search" onSubmit={(event) => { event.preventDefault(); void searchYouTube(); }}>
+            <label className="search-field"><Icon name="search" size={18} /><input aria-label="Buscar en YouTube" placeholder="Artista o canción" value={youtubeQuery} onChange={(event) => { setYoutubeQuery(event.target.value); setSearchError(""); }} /></label>
+            <button className="search-submit" type="submit" disabled={isSearching || !youtubeQuery.trim()}>{isSearching ? "Buscando…" : "Buscar"}</button>
+          </form>
+          <div className="results-heading"><span>RESULTADOS</span><span>{youtubeResults.length ? `${youtubeResults.length} VIDEOS` : "YOUTUBE"}</span></div>
+          <div className="discover-results">
+            {searchError && <p className="inline-message">{searchError}</p>}
+            {youtubeResults.map((result) => <article className="result-row" key={result.id}><button className="result-main" onClick={() => playSong(new Nodo(result.title, "", result.thumbnail, result.id))}><img src={result.thumbnail} alt="" /><span><strong>{result.title}</strong><small>{result.channelTitle}</small></span></button></article>)}
+            {!youtubeResults.length && !searchError && <div className="discover-empty"><span className="empty-art"><Icon name="music" size={24} /></span><strong>Busca música en YouTube</strong><p>Los resultados aparecerán aquí.</p></div>}
+          </div>
+          <div className="discover-foot"><span>YouTube</span><span className="foot-line" /></div>
+        </aside>
       </div>
-    </div>
+    </main>
   );
 }
 
